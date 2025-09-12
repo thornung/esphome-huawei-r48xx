@@ -3,8 +3,6 @@
 [![License][license-shield]](LICENSE)
 
 
-<a href="https://www.buymeacoffee.com/mbsoftware"><img src="https://img.buymeacoffee.com/button-api/?text=Buy me a coffee&emoji=&slug=mbsoftware&button_colour=FFDD00&font_colour=000000&font_family=Cookie&outline_colour=000000&coffee_colour=ffffff" /></a>
-
 ## EspHome Component to control and read values from a huawei r4850/r4875 power supply via CAN bus.
 
 ### Requirements
@@ -23,3 +21,5 @@ For automatic excess charging based on a home assistant sensor ("total system po
 [huawei_r48xx_excess_charging](huawei_r48xx_excess_charging.yaml)
 
 An additional 5V relay and a level shifter connected to a GPIO is required for this to work properly. The slot detection is being switched automatically depending on excess power and SOC. The charging current is being set depending on excess power and maximum allowed current.
+
+[license-shield]: https://img.shields.io/badge/MIT-green?style=for-the-badge
