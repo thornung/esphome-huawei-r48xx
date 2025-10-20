@@ -37,22 +37,21 @@ void HuaweiR48xxComponent::setup() {
   LambdaAction<std::vector<uint8_t>, uint32_t, bool> *lambdaaction;
   canbus::CanbusTrigger *canbus_canbustrigger;
 
+  // Erzeuge das Trigger-Objekt
   canbus_canbustrigger = new canbus::CanbusTrigger(this->canbus, 0, 0, true);
 
-  // KORREKT: Benutze LogString::from_static() zur Konvertierung
-  canbus_canbustrigger->set_component_source(LogString::from_static("canbus"));
+  // HIER die set_component_source-Zeile einfügen!
+  canbus_canbustrigger->set_component_source(&CANBUS_LOGSTRING);
 
   App.register_component(canbus_canbustrigger);
   automation = new Automation<std::vector<uint8_t>, uint32_t, bool>(canbus_canbustrigger);
-
-  // KORREKT: Lambda erfasst this explizit
   auto cb = [this](std::vector<uint8_t> x, uint32_t can_id, bool remote_transmission_request) -> void {
     this->on_frame(can_id, remote_transmission_request, x);
   };
-
   lambdaaction = new LambdaAction<std::vector<uint8_t>, uint32_t, bool>(cb);
   automation->add_actions({lambdaaction});
 }
+
 
 void HuaweiR48xxComponent::update() {
   ESP_LOGD(TAG, "Sending request message");
