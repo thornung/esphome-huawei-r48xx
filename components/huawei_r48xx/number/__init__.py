@@ -36,7 +36,7 @@ CONFIG_SCHEMA = cv.All(
                 {
                     cv.GenerateID(): cv.declare_id(HuaweiR48xxNumber),
                     cv.Optional(CONF_MIN_VALUE, default=42): cv.float_,
-                    cv.Optional(CONF_MAX_VALUE, default=58.4): cv.float_,
+                    cv.Optional(CONF_MAX_VALUE, default=56): cv.float_,
                     cv.Optional(CONF_STEP, default=0.1): cv.float_,
                     cv.Optional(CONF_ICON, default=ICON_FLASH): cv.icon,
                     cv.Optional(
@@ -54,7 +54,7 @@ CONFIG_SCHEMA = cv.All(
                 {
                     cv.GenerateID(): cv.declare_id(HuaweiR48xxNumber),
                     cv.Optional(CONF_MIN_VALUE, default=0): cv.float_,
-                    cv.Optional(CONF_MAX_VALUE, default=75): cv.float_,
+                    cv.Optional(CONF_MAX_VALUE, default=45): cv.float_,
                     cv.Optional(CONF_STEP, default=0.1): cv.float_,
                     cv.Optional(CONF_ICON, default=ICON_CURRENT_AC): cv.icon,
                     cv.Optional(
