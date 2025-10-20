@@ -5,6 +5,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/log.h"
 #include "esphome/core/logstring.h"
+static const esphome::LogString CANBUS_LOGSTRING PROGMEM = esphome::make_static_log_string("canbus");
 
 
 namespace esphome {
