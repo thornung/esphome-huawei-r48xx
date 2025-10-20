@@ -39,12 +39,12 @@ void HuaweiR48xxComponent::setup() {
 
   canbus_canbustrigger = new canbus::CanbusTrigger(this->canbus, 0, 0, true);
 
-  // Auskommentiert! Fehlerquelle entfernt.
-  // canbus_canbustrigger->set_component_source(LogString::from_static("canbus"));
+  // Entfernt: canbus_canbustrigger->set_component_source("canbus");
 
   App.register_component(canbus_canbustrigger);
   automation = new Automation<std::vector<uint8_t>, uint32_t, bool>(canbus_canbustrigger);
 
+  // Änderung hier (jetzt [this], nicht [=]):
   auto cb = [this](std::vector<uint8_t> x, uint32_t can_id, bool remote_transmission_request) -> void {
     this->on_frame(can_id, remote_transmission_request, x);
   };
@@ -52,8 +52,6 @@ void HuaweiR48xxComponent::setup() {
   lambdaaction = new LambdaAction<std::vector<uint8_t>, uint32_t, bool>(cb);
   automation->add_actions({lambdaaction});
 }
-
-
 
 
 void HuaweiR48xxComponent::update() {
