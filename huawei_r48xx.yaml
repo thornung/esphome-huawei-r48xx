@@ -1,9 +1,8 @@
 esphome:
-  name: huawei_r48xx
-  friendly_name: Huawei R48xx
-
+  name: huawei_r4850v1
+  friendly_name: Huawei R4850v1
 external_components:
-  - source: github://thornung/esphome-huawei-r48xx
+  - source: github://jn30/esphome-huawei-r48xx
 
 esp32:
   board: esp32dev

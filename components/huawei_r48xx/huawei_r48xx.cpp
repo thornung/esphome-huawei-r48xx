@@ -5,6 +5,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/log.h"
 
+
 namespace esphome {
 namespace huawei_r48xx {
 
@@ -35,15 +36,20 @@ void HuaweiR48xxComponent::setup() {
   canbus::CanbusTrigger *canbus_canbustrigger;
 
   canbus_canbustrigger = new canbus::CanbusTrigger(this->canbus, 0, 0, true);
-  canbus_canbustrigger->set_component_source("canbus");
+  // KEINE LogString-Funktion!
+  // Optional, wenn gefordert: canbus_canbustrigger->set_component_source(nullptr);
+
   App.register_component(canbus_canbustrigger);
   automation = new Automation<std::vector<uint8_t>, uint32_t, bool>(canbus_canbustrigger);
-  auto cb = [=](std::vector<uint8_t> x, uint32_t can_id, bool remote_transmission_request) -> void {
+
+  auto cb = [this](std::vector<uint8_t> x, uint32_t can_id, bool remote_transmission_request) -> void {
     this->on_frame(can_id, remote_transmission_request, x);
   };
+
   lambdaaction = new LambdaAction<std::vector<uint8_t>, uint32_t, bool>(cb);
   automation->add_actions({lambdaaction});
 }
+
 
 void HuaweiR48xxComponent::update() {
   ESP_LOGD(TAG, "Sending request message");
