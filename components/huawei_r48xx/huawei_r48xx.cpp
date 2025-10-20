@@ -39,13 +39,12 @@ void HuaweiR48xxComponent::setup() {
 
   canbus_canbustrigger = new canbus::CanbusTrigger(this->canbus, 0, 0, true);
 
-  // FEHLERHAFTE ZUWEISUNG WEGGELASSEN!
-  // canbus_canbustrigger->set_component_source("canbus");
+  // Auskommentiert! Fehlerquelle entfernt.
+  // canbus_canbustrigger->set_component_source(LogString::from_static("canbus"));
 
   App.register_component(canbus_canbustrigger);
   automation = new Automation<std::vector<uint8_t>, uint32_t, bool>(canbus_canbustrigger);
 
-  // C++20-kompatibles Lambda-Capture:
   auto cb = [this](std::vector<uint8_t> x, uint32_t can_id, bool remote_transmission_request) -> void {
     this->on_frame(can_id, remote_transmission_request, x);
   };
