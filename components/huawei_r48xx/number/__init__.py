@@ -32,9 +32,10 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(CONF_HUAWEI_R48xx_ID): cv.use_id(HuaweiR48xxComponent),
-            cv.Optional(CONF_OUTPUT_VOLTAGE): number.NUMBER_SCHEMA.extend(
+            cv.Optional(CONF_OUTPUT_VOLTAGE): number.number_schema(
+                HuaweiR48xxNumber,
+            ).extend(
                 {
-                    cv.GenerateID(): cv.declare_id(HuaweiR48xxNumber),
                     cv.Optional(CONF_MIN_VALUE, default=42): cv.float_,
                     cv.Optional(CONF_MAX_VALUE, default=58.4): cv.float_,
                     cv.Optional(CONF_STEP, default=0.1): cv.float_,
@@ -50,9 +51,10 @@ CONFIG_SCHEMA = cv.All(
                     ): cv.entity_category,
                 }
             ),
-            cv.Optional(CONF_MAX_OUTPUT_CURRENT): number.NUMBER_SCHEMA.extend(
+            cv.Optional(CONF_MAX_OUTPUT_CURRENT): number.number_schema(
+                HuaweiR48xxNumber,
+            ).extend(
                 {
-                    cv.GenerateID(): cv.declare_id(HuaweiR48xxNumber),
                     cv.Optional(CONF_MIN_VALUE, default=0): cv.float_,
                     cv.Optional(CONF_MAX_VALUE, default=75): cv.float_,
                     cv.Optional(CONF_STEP, default=0.1): cv.float_,
