@@ -16,10 +16,7 @@ Please check the provided example esphome configuration:
 [huawei_r48xx.yaml](huawei_r48xx.yaml)
 
 ## Automatic excess charging
-
-For automatic excess charging based on a home assistant sensor ("total system power") please check out the following example:
-[huawei_r48xx_excess_charging](huawei_r48xx_excess_charging.yaml)
-
-An additional 5V relay and a level shifter connected to a GPIO is required for this to work properly. The slot detection is being switched automatically depending on excess power and SOC. The charging current is being set depending on excess power and maximum allowed current.
+Full working automatic excess charging based on a home assistant:
+![alt text](https://github.com/thornung/esphome-huawei-r48xx/blob/main/images/huawei_lr.png?raw=true)
 
 [license-shield]: https://img.shields.io/badge/MIT-green?style=for-the-badge
