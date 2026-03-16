@@ -30,18 +30,27 @@ static const uint8_t R48xx_DATA_OUTPUT_CURRENT1 = 0x82;
 HuaweiR48xxComponent::HuaweiR48xxComponent(canbus::Canbus *canbus) { this->canbus = canbus; }
 
 void HuaweiR48xxComponent::setup() {
-  Automation<std::vector<uint8_t>, uint32_t, bool> *automation;
-  LambdaAction<std::vector<uint8_t>, uint32_t, bool> *lambdaaction;
   canbus::CanbusTrigger *canbus_canbustrigger;
-
   canbus_canbustrigger = new canbus::CanbusTrigger(this->canbus, 0, 0, true);
   canbus_canbustrigger->set_component_source("canbus");
   App.register_component(canbus_canbustrigger);
-  automation = new Automation<std::vector<uint8_t>, uint32_t, bool>(canbus_canbustrigger);
+
+#if ESPHOME_VERSION_CODE >= VERSION_CODE(2026, 2, 0)
+  // ESPHome >= 2026.2: Parameterreihenfolge (data, can_id, extended_id, rtr)
+  auto *automation = new Automation<std::vector<uint8_t>, uint32_t, bool, bool>(canbus_canbustrigger);
+  auto cb = [=](std::vector<uint8_t> x, uint32_t can_id, bool extended_id, bool remote_transmission_request) -> void {
+    this->on_frame(can_id, remote_transmission_request, x);
+  };
+  auto *lambdaaction = new LambdaAction<std::vector<uint8_t>, uint32_t, bool, bool>(cb);
+#else
+  // ESPHome < 2026.2: Parameterreihenfolge (data, can_id, rtr)
+  auto *automation = new Automation<std::vector<uint8_t>, uint32_t, bool>(canbus_canbustrigger);
   auto cb = [=](std::vector<uint8_t> x, uint32_t can_id, bool remote_transmission_request) -> void {
     this->on_frame(can_id, remote_transmission_request, x);
   };
-  lambdaaction = new LambdaAction<std::vector<uint8_t>, uint32_t, bool>(cb);
+  auto *lambdaaction = new LambdaAction<std::vector<uint8_t>, uint32_t, bool>(cb);
+#endif
+
   automation->add_actions({lambdaaction});
 }
 
@@ -161,21 +170,16 @@ void HuaweiR48xxComponent::on_frame(uint32_t can_id, bool rtr, std::vector<uint8
         break;
 
       case R48xx_DATA_OUTPUT_CURRENT1:
-        // printf("Output Current(1) %.02fA\r\n", value / 1024.0);
-        // output_current = value / 1024.0;
         break;
 
       case R48xx_DATA_OUTPUT_CURRENT:
         conv_value = value / 1024.0;
         this->publish_sensor_state_(this->output_current_sensor_, conv_value);
         ESP_LOGV(TAG, "Output current: %f", conv_value);
-
-        // this usually is the last message
         this->lastUpdate_ = millis();
         break;
 
       default:
-        // printf("Unknown parameter 0x%02X, 0x%04X\r\n",frame[1], value);
         break;
     }
   }
