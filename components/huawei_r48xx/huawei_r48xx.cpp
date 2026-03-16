@@ -30,30 +30,27 @@ static const uint8_t R48xx_DATA_OUTPUT_CURRENT1 = 0x82;
 HuaweiR48xxComponent::HuaweiR48xxComponent(canbus::Canbus *canbus) { this->canbus = canbus; }
 
 void HuaweiR48xxComponent::setup() {
+#if ESPHOME_VERSION_CODE >= VERSION_CODE(2026, 2, 0)
+  // ESPHome >= 2026.2: CanbusTrigger ist kein Trigger<Ts...> mehr
+  // → direkt add_callback() auf Canbus verwenden
+  this->canbus->add_callback([this](uint32_t can_id, bool extended_id, bool rtr, const std::vector<uint8_t> &data) {
+    this->on_frame(can_id, rtr, const_cast<std::vector<uint8_t> &>(data));
+  });
+#else
+  // ESPHome < 2026.2: Automation über CanbusTrigger
+  Automation<std::vector<uint8_t>, uint32_t, bool> *automation;
+  LambdaAction<std::vector<uint8_t>, uint32_t, bool> *lambdaaction;
   canbus::CanbusTrigger *canbus_canbustrigger;
   canbus_canbustrigger = new canbus::CanbusTrigger(this->canbus, 0, 0, true);
-  App.register_component(canbus_canbustrigger);
-
-#if ESPHOME_VERSION_CODE >= VERSION_CODE(2026, 2, 0)
-  // ESPHome >= 2026.2: LogString* + 4 Template-Parameter + explicit this
-  canbus_canbustrigger->set_component_source(LOG_STR("canbus"));
-  auto *automation = new Automation<std::vector<uint8_t>, uint32_t, bool, bool>(
-      static_cast<Trigger<std::vector<uint8_t>, uint32_t, bool, bool> *>(canbus_canbustrigger));
-  auto cb = [=, this](std::vector<uint8_t> x, uint32_t can_id, bool extended_id, bool remote_transmission_request) -> void {
-    this->on_frame(can_id, remote_transmission_request, x);
-  };
-  auto *lambdaaction = new LambdaAction<std::vector<uint8_t>, uint32_t, bool, bool>(cb);
-#else
-  // ESPHome < 2026.2: const char* + 3 Template-Parameter
   canbus_canbustrigger->set_component_source("canbus");
-  auto *automation = new Automation<std::vector<uint8_t>, uint32_t, bool>(canbus_canbustrigger);
+  App.register_component(canbus_canbustrigger);
+  automation = new Automation<std::vector<uint8_t>, uint32_t, bool>(canbus_canbustrigger);
   auto cb = [=](std::vector<uint8_t> x, uint32_t can_id, bool remote_transmission_request) -> void {
     this->on_frame(can_id, remote_transmission_request, x);
   };
-  auto *lambdaaction = new LambdaAction<std::vector<uint8_t>, uint32_t, bool>(cb);
-#endif
-
+  lambdaaction = new LambdaAction<std::vector<uint8_t>, uint32_t, bool>(cb);
   automation->add_actions({lambdaaction});
+#endif
 }
 
 void HuaweiR48xxComponent::update() {
