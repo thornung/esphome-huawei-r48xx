@@ -27,7 +27,11 @@ static const uint8_t R48xx_DATA_INPUT_TEMPERATURE = 0x80;
 static const uint8_t R48xx_DATA_OUTPUT_CURRENT = 0x81;
 static const uint8_t R48xx_DATA_OUTPUT_CURRENT1 = 0x82;
 
-HuaweiR48xxComponent::HuaweiR48xxComponent(canbus::Canbus *canbus) { this->canbus = canbus; }
+HuaweiR48xxComponent::HuaweiR48xxComponent(canbus::Canbus *canbus) {
+  this->canbus = canbus;
+  this->current_scale_factor_ = 10.08f;  // Startwert R4875G1, wird automatisch kalibriert
+  this->last_raw_sent_ = 0;
+}
 
 void HuaweiR48xxComponent::setup() {
 #if ESPHOME_VERSION_CODE >= VERSION_CODE(2026, 2, 0)
@@ -88,7 +92,8 @@ void HuaweiR48xxComponent::set_max_output_current(float value, bool offline) {
   uint8_t functionCode = 0x3;
   if (offline)
     functionCode += 1;
-  int32_t raw = 10.08 * value; // empirisch kalibriert für R4875G1 (75A)
+  int32_t raw = (int32_t)(this->current_scale_factor_ * value);
+  this->last_raw_sent_ = raw;
   std::vector<uint8_t> data = {
       0x1, functionCode, 0x0, 0x0, (uint8_t) (raw >> 24), (uint8_t) (raw >> 16), (uint8_t) (raw >> 8), (uint8_t) raw};
   this->canbus->send_data(CAN_ID_SET, true, data);
@@ -145,7 +150,20 @@ void HuaweiR48xxComponent::on_frame(uint32_t can_id, bool rtr, std::vector<uint8
         break;
 
       case R48xx_DATA_OUTPUT_CURRENT_MAX:
-        conv_value = value / 10.08; 
+        // Gerät meldet zurück welchen Strom es als Maximum hat (in geräteeigener Skala)
+        // Wir nutzen das zur automatischen Kalibrierung des Schreibfaktors:
+        // Wenn wir raw=X gesendet haben und das Gerät Y Ampere meldet → Faktor = X / Y
+        if (this->last_raw_sent_ > 10 && value > 0) {
+          float i_rueck = (float)value / 19.6923f;  // Lesefaktor (unverändert)
+          if (i_rueck > 1.0f) {
+            float faktor_neu = (float)this->last_raw_sent_ / i_rueck;
+            // Sanfter Mittelwert: Faktor nicht zu schnell ändern
+            this->current_scale_factor_ = 0.9f * this->current_scale_factor_ + 0.1f * faktor_neu;
+            ESP_LOGD(TAG, "Kalibrierung: raw=%d, i=%.2fA, faktor=%.3f",
+                     this->last_raw_sent_, i_rueck, this->current_scale_factor_);
+          }
+        }
+        conv_value = (float)value / 19.6923f;
         this->publish_number_state_(this->max_output_current_number_, conv_value);
         ESP_LOGV(TAG, "Max Output current: %f", conv_value);
         break;
