@@ -31,7 +31,7 @@ struct R48xxModel {
 };
 static const R48xxModel R48XX_MODELS[] = {
     {"R4850G2", 52.0f, 1.0f},
-    {"R4875G1", 101.5f, 0.512f},  // Nennstrom aus dem empirischen Schreibfaktor 10.08 abgeleitet (1024/10.08)
+    {"R4875G1", 101.5f, 1.0f},  // Nennstrom aus Schreibfaktor 10.08 abgeleitet (ungeprueft); Lesewerte ~unskaliert (Energiebilanz 14.10.2026)
 };
 static const float MODEL_MATCH_TOLERANCE_A = 4.0f;
 

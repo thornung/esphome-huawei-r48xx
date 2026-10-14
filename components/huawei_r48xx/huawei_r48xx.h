@@ -41,7 +41,7 @@ class HuaweiR48xxComponent : public PollingComponent {
   float   current_scale_factor_{10.08f};  // Startwert R4875G1, wird laufend kalibriert
   int32_t last_raw_sent_{0};
 
-  // Korrektur fuer gemeldeten Strom/Leistung (R4875G1: 0.512, R4850: 1.0)
+  // Korrektur fuer gemeldeten Strom/Leistung (R4875G1 und R4850: 1.0)
   float measurement_scale_{1.0f};
   bool auto_scale_{false};  // true: Faktor aus erkanntem Geraetetyp
 

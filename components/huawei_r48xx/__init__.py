@@ -17,7 +17,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.declare_id(HuaweiR48xxComponent),
         cv.Required(CONF_CANBUS_ID): cv.use_id(CanbusComponent),
         # Korrekturfaktor fuer gemeldeten Strom/Leistung (Register 0x70/0x72/0x73/0x81).
-        #   Zahl : fester Faktor (R4850: 1.0 = Default, R4875G1: 0.512)
+        #   Zahl : fester Faktor (1.0 = Default (R4850 und R4875G1))
         #   auto : Geraetetyp per CAN-Info-Abfrage erkennen und Faktor aus der Typ-Tabelle nehmen
         # Die Erkennung laeuft immer und schreibt Typ/Nennstrom ins Log.
         cv.Optional(CONF_MEASUREMENT_SCALE, default=1.0): cv.Any(
