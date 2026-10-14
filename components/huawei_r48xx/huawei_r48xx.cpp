@@ -4,6 +4,8 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/log.h"
+#include <cmath>
+#include <cstring>
 
 namespace esphome {
 namespace huawei_r48xx {
@@ -13,6 +15,25 @@ static const char *const TAG = "huawei_r48xx";
 static const uint32_t CAN_ID_REQUEST = 0x108040FE;
 static const uint32_t CAN_ID_DATA = 0x1081407F;
 static const uint32_t CAN_ID_SET = 0x108180FE;
+static const uint32_t CAN_ID_INFO_REQUEST = 0x108150FE;  // Info-Abfrage (Nennstrom, Barcode, Versionen)
+static const uint32_t CAN_ID_INFO_DATA = 0x1081507F;     // Antwort-Frames
+static const uint32_t CAN_ID_INFO_LAST = 0x1081507E;     // letzter Antwort-Frame
+
+static const uint32_t IDENT_RETRY_MS = 2000;
+static const uint32_t IDENT_TIMEOUT_MS = 30000;
+
+// Typ-Tabelle: Nennstrom aus Info-Register 0x0001, Faktor fuer gemeldeten Strom/Leistung.
+// Der Messfaktor ist relativ zur R4850-Vorlage (52 A => 1.0): 52 / Nennstrom.
+struct R48xxModel {
+  const char *name;
+  float nominal_a;
+  float meas_scale;
+};
+static const R48xxModel R48XX_MODELS[] = {
+    {"R4850G2", 52.0f, 1.0f},
+    {"R4875G1", 101.5f, 0.512f},  // Nennstrom aus dem empirischen Schreibfaktor 10.08 abgeleitet (1024/10.08)
+};
+static const float MODEL_MATCH_TOLERANCE_A = 4.0f;
 
 static const uint8_t R48xx_DATA_INPUT_POWER = 0x70;
 static const uint8_t R48xx_DATA_INPUT_FREQ = 0x71;
@@ -57,7 +78,94 @@ void HuaweiR48xxComponent::setup() {
 #endif
 }
 
+void HuaweiR48xxComponent::request_identity_() {
+  const uint32_t now = millis();
+  if (this->ident_start_ms_ == 0)
+    this->ident_start_ms_ = now;
+  if (now - this->ident_start_ms_ > IDENT_TIMEOUT_MS) {
+    this->identified_ = true;  // aufgeben, mit dem konfigurierten Faktor weiterarbeiten
+    if (this->auto_scale_) {
+      ESP_LOGE(TAG, "Geraet nicht erkannt (keine Antwort auf Info-Abfrage) - verwende measurement_scale=%.3f",
+               this->measurement_scale_);
+    } else {
+      ESP_LOGW(TAG, "Geraet nicht erkannt (keine Antwort auf Info-Abfrage)");
+    }
+    return;
+  }
+  if (now - this->last_ident_req_ms_ >= IDENT_RETRY_MS) {
+    this->last_ident_req_ms_ = now;
+    this->nominal_known_ = false;
+    memset(this->barcode_, 0, sizeof(this->barcode_));
+    std::vector<uint8_t> req = {0, 0, 0, 0, 0, 0, 0, 0};
+    this->canbus->send_data(CAN_ID_INFO_REQUEST, true, req);
+  }
+}
+
+void HuaweiR48xxComponent::on_identity_frame_(const std::vector<uint8_t> &data, bool last) {
+  if (this->identified_ || data.size() < 8)
+    return;
+  const uint16_t reg = (data[0] << 8) | data[1];
+  switch (reg) {
+    case 0x0001: {
+      // Modul-Kenndaten: Nennstrom = ((Byte4<<8 | Byte5) & 0x3FF) / 2  [A]
+      const uint16_t raw = ((data[4] << 8) | data[5]) & 0x3FF;
+      this->nominal_current_ = raw / 2.0f;
+      this->nominal_known_ = true;
+      break;
+    }
+    case 0x0003:
+      memcpy(this->barcode_, &data[2], 6);  // Barcode Teil 1 (ASCII)
+      break;
+    case 0x0004:
+      memcpy(this->barcode_ + 6, &data[2], 6);  // Barcode Teil 2 (ASCII)
+      break;
+    default:
+      break;
+  }
+  if (last) {
+    if (this->nominal_known_) {
+      this->apply_model_();
+    }
+    // sonst: naechster Versuch nach IDENT_RETRY_MS
+  }
+}
+
+void HuaweiR48xxComponent::apply_model_() {
+  const R48xxModel *best = nullptr;
+  float best_d = 1e9f;
+  for (const auto &m : R48XX_MODELS) {
+    const float d = fabsf(m.nominal_a - this->nominal_current_);
+    if (d < best_d) {
+      best_d = d;
+      best = &m;
+    }
+  }
+  const bool known = (best != nullptr && best_d <= MODEL_MATCH_TOLERANCE_A);
+  const float expected_write = 1024.0f / this->nominal_current_;
+  ESP_LOGI(TAG, "Geraet erkannt: %s, Nennstrom=%.1fA, Barcode=%s", known ? best->name : "unbekannt",
+           this->nominal_current_, this->barcode_);
+  ESP_LOGI(TAG, "  Schreibfaktor Stromlimit: erwartet %.3f (=1024/Nennstrom), aktuell %.3f", expected_write,
+           this->current_scale_factor_);
+  if (known) {
+    if (this->auto_scale_) {
+      this->measurement_scale_ = best->meas_scale;
+      ESP_LOGI(TAG, "  measurement_scale=auto -> %.3f", this->measurement_scale_);
+    } else if (fabsf(best->meas_scale - this->measurement_scale_) > 0.02f) {
+      ESP_LOGW(TAG, "  konfigurierter measurement_scale=%.3f weicht vom Typ-Wert %.3f ab", this->measurement_scale_,
+               best->meas_scale);
+    } else {
+      ESP_LOGI(TAG, "  konfigurierter measurement_scale=%.3f passt zum Typ", this->measurement_scale_);
+    }
+  } else {
+    ESP_LOGW(TAG, "  Typ nicht in der Tabelle - measurement_scale bleibt %.3f (Tabelle R48XX_MODELS ergaenzen)",
+             this->measurement_scale_);
+  }
+  this->identified_ = true;
+}
+
 void HuaweiR48xxComponent::update() {
+  if (!this->identified_)
+    this->request_identity_();
   ESP_LOGD(TAG, "Sending request message");
   std::vector<uint8_t> data = {0, 0, 0, 0, 0, 0, 0, 0};
   this->canbus->send_data(CAN_ID_REQUEST, true, data);
@@ -109,12 +217,18 @@ void HuaweiR48xxComponent::set_offline_values() {
 }
 
 void HuaweiR48xxComponent::on_frame(uint32_t can_id, bool rtr, std::vector<uint8_t> &data) {
+  if (can_id == CAN_ID_INFO_DATA || can_id == CAN_ID_INFO_LAST) {
+    this->on_identity_frame_(data, can_id == CAN_ID_INFO_LAST);
+    return;
+  }
   if (can_id == CAN_ID_DATA) {
     uint32_t value = (data[4] << 24) + (data[5] << 16) + (data[6] << 8) + data[7];
     float conv_value = 0;
     switch (data[1]) {
       case R48xx_DATA_INPUT_POWER:
-        conv_value = value / 1024.0;
+        if (this->auto_scale_ && !this->identified_)
+          break;  // Faktor noch unbekannt
+        conv_value = value / 1024.0 * this->measurement_scale_;
         this->publish_sensor_state_(this->input_power_sensor_, conv_value);
         ESP_LOGV(TAG, "Input power: %f", conv_value);
         break;
@@ -126,13 +240,17 @@ void HuaweiR48xxComponent::on_frame(uint32_t can_id, bool rtr, std::vector<uint8
         break;
 
       case R48xx_DATA_INPUT_CURRENT:
-        conv_value = value / 1024.0;
+        if (this->auto_scale_ && !this->identified_)
+          break;  // Faktor noch unbekannt
+        conv_value = value / 1024.0 * this->measurement_scale_;
         this->publish_sensor_state_(this->input_current_sensor_, conv_value);
         ESP_LOGV(TAG, "Input current: %f", conv_value);
         break;
 
       case R48xx_DATA_OUTPUT_POWER:
-        conv_value = value / 1024.0;
+        if (this->auto_scale_ && !this->identified_)
+          break;  // Faktor noch unbekannt
+        conv_value = value / 1024.0 * this->measurement_scale_;
         this->publish_sensor_state_(this->output_power_sensor_, conv_value);
         ESP_LOGV(TAG, "Output power: %f", conv_value);
         break;
@@ -190,7 +308,9 @@ void HuaweiR48xxComponent::on_frame(uint32_t can_id, bool rtr, std::vector<uint8
         break;
 
       case R48xx_DATA_OUTPUT_CURRENT:
-        conv_value = value / 1024.0;
+        if (this->auto_scale_ && !this->identified_)
+          break;  // Faktor noch unbekannt
+        conv_value = value / 1024.0 * this->measurement_scale_;
         this->publish_sensor_state_(this->output_current_sensor_, conv_value);
         ESP_LOGV(TAG, "Output current: %f", conv_value);
         this->lastUpdate_ = millis();
