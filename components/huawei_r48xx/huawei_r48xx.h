@@ -30,6 +30,8 @@ class HuaweiR48xxComponent : public PollingComponent {
   void set_max_output_current_number(number::Number *n) { max_output_current_number_ = n; }
 
   float get_current_scale_factor() const { return current_scale_factor_; }
+  void set_measurement_scale(float s) { measurement_scale_ = s; }
+  void set_measurement_scale_auto(bool a) { auto_scale_ = a; }
 
  protected:
   canbus::Canbus *canbus;
@@ -38,6 +40,21 @@ class HuaweiR48xxComponent : public PollingComponent {
   // Automatische Stromkalibrierung
   float   current_scale_factor_{10.08f};  // Startwert R4875G1, wird laufend kalibriert
   int32_t last_raw_sent_{0};
+
+  // Korrektur fuer gemeldeten Strom/Leistung (R4875G1: 0.512, R4850: 1.0)
+  float measurement_scale_{1.0f};
+  bool auto_scale_{false};  // true: Faktor aus erkanntem Geraetetyp
+
+  // Geraeteerkennung (CAN-Info-Abfrage 0x108150FE)
+  bool identified_{false};
+  bool nominal_known_{false};
+  float nominal_current_{0.0f};
+  char barcode_[13]{0};
+  uint32_t ident_start_ms_{0};
+  uint32_t last_ident_req_ms_{0};
+  void request_identity_();
+  void on_identity_frame_(const std::vector<uint8_t> &data, bool last);
+  void apply_model_();
 
   sensor::Sensor *input_voltage_sensor_{nullptr};
   sensor::Sensor *input_frequency_sensor_{nullptr};
