@@ -31,7 +31,7 @@ struct R48xxModel {
 };
 static const R48xxModel R48XX_MODELS[] = {
     {"R4850G2", 52.0f, 1.0f},
-    {"R4875G1", 101.5f, 1.0f},  // Nennstrom aus Schreibfaktor 10.08 abgeleitet (ungeprueft); Lesewerte ~unskaliert (Energiebilanz 14.10.2026)
+    {"R4875G1", 75.0f, 1.0f},  // Nennstrom 75 A per CAN-Info gemessen (Barcode 2102312JLELU, 15.10.2026); Lesewerte unskaliert (BMS-Vergleich 4270 W vs 4407 W)
 };
 static const float MODEL_MATCH_TOLERANCE_A = 4.0f;
 
