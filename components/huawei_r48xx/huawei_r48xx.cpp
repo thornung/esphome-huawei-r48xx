@@ -142,30 +142,52 @@ void HuaweiR48xxComponent::apply_model_() {
   }
   const bool known = (best != nullptr && best_d <= MODEL_MATCH_TOLERANCE_A);
   const float expected_write = 1024.0f / this->nominal_current_;
-  ESP_LOGI(TAG, "Geraet erkannt: %s, Nennstrom=%.1fA, Barcode=%s", known ? best->name : "unbekannt",
-           this->nominal_current_, this->barcode_);
-  ESP_LOGI(TAG, "  Schreibfaktor Stromlimit: erwartet %.3f (=1024/Nennstrom), aktuell %.3f", expected_write,
+  snprintf(this->ident_log_[0], sizeof(this->ident_log_[0]), "Geraet erkannt: %s, Nennstrom=%.1fA, Barcode=%s",
+           known ? best->name : "unbekannt", this->nominal_current_, this->barcode_);
+  snprintf(this->ident_log_[1], sizeof(this->ident_log_[1]),
+           "  Schreibfaktor Stromlimit: erwartet %.3f (=1024/Nennstrom), aktuell %.3f", expected_write,
            this->current_scale_factor_);
   if (known) {
     if (this->auto_scale_) {
       this->measurement_scale_ = best->meas_scale;
-      ESP_LOGI(TAG, "  measurement_scale=auto -> %.3f", this->measurement_scale_);
+      snprintf(this->ident_log_[2], sizeof(this->ident_log_[2]), "  measurement_scale=auto -> %.3f",
+               this->measurement_scale_);
     } else if (fabsf(best->meas_scale - this->measurement_scale_) > 0.02f) {
-      ESP_LOGW(TAG, "  konfigurierter measurement_scale=%.3f weicht vom Typ-Wert %.3f ab", this->measurement_scale_,
+      snprintf(this->ident_log_[2], sizeof(this->ident_log_[2]),
+               "  konfigurierter measurement_scale=%.3f weicht vom Typ-Wert %.3f ab", this->measurement_scale_,
                best->meas_scale);
     } else {
-      ESP_LOGI(TAG, "  konfigurierter measurement_scale=%.3f passt zum Typ", this->measurement_scale_);
+      snprintf(this->ident_log_[2], sizeof(this->ident_log_[2]), "  konfigurierter measurement_scale=%.3f passt zum Typ",
+               this->measurement_scale_);
     }
   } else {
-    ESP_LOGW(TAG, "  Typ nicht in der Tabelle - measurement_scale bleibt %.3f (Tabelle R48XX_MODELS ergaenzen)",
+    snprintf(this->ident_log_[2], sizeof(this->ident_log_[2]),
+             "  Typ nicht in der Tabelle - measurement_scale bleibt %.3f (Tabelle R48XX_MODELS ergaenzen)",
              this->measurement_scale_);
   }
+  this->ident_log_n_ = 3;
   this->identified_ = true;
+  this->log_identity_();
+}
+
+void HuaweiR48xxComponent::log_identity_() {
+  for (uint8_t i = 0; i < this->ident_log_n_; i++)
+    ESP_LOGI(TAG, "%s", this->ident_log_[i]);
 }
 
 void HuaweiR48xxComponent::update() {
   if (!this->identified_)
     this->request_identity_();
+  // Ergebnis der Geraeteerkennung nach 60 s nochmal ausgeben (Boot-Log ist per API oft schon vorbei)
+  if (!this->ident_relogged_ && millis() > 60000) {
+    this->ident_relogged_ = true;
+    if (this->ident_log_n_ > 0) {
+      ESP_LOGI(TAG, "Geraeteerkennung (Wiederholung):");
+      this->log_identity_();
+    } else {
+      ESP_LOGW(TAG, "Geraeteerkennung: kein Ergebnis (keine Antwort auf Info-Abfrage)");
+    }
+  }
   ESP_LOGD(TAG, "Sending request message");
   std::vector<uint8_t> data = {0, 0, 0, 0, 0, 0, 0, 0};
   this->canbus->send_data(CAN_ID_REQUEST, true, data);

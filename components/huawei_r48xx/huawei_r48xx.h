@@ -55,6 +55,10 @@ class HuaweiR48xxComponent : public PollingComponent {
   void request_identity_();
   void on_identity_frame_(const std::vector<uint8_t> &data, bool last);
   void apply_model_();
+  void log_identity_();
+  char ident_log_[3][128]{};  // Ergebniszeilen, werden nach 60 s nochmal ausgegeben
+  uint8_t ident_log_n_{0};
+  bool ident_relogged_{false};
 
   sensor::Sensor *input_voltage_sensor_{nullptr};
   sensor::Sensor *input_frequency_sensor_{nullptr};
