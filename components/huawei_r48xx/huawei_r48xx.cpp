@@ -145,7 +145,7 @@ void HuaweiR48xxComponent::apply_model_() {
   snprintf(this->ident_log_[0], sizeof(this->ident_log_[0]), "Geraet erkannt: %s, Nennstrom=%.1fA, Barcode=%s",
            known ? best->name : "unbekannt", this->nominal_current_, this->barcode_);
   snprintf(this->ident_log_[1], sizeof(this->ident_log_[1]),
-           "  Schreibfaktor Stromlimit: erwartet %.3f (=1024/Nennstrom), aktuell %.3f", expected_write,
+           "  Rueckmelde-Skala Stromlimit %.3f (=1024/Nennstrom), Schreibfaktor aktuell %.3f (wird kalibriert)", expected_write,
            this->current_scale_factor_);
   if (known) {
     if (this->auto_scale_) {
@@ -289,12 +289,16 @@ void HuaweiR48xxComponent::on_frame(uint32_t can_id, bool rtr, std::vector<uint8
         ESP_LOGV(TAG, "Output voltage: %f", conv_value);
         break;
 
-      case R48xx_DATA_OUTPUT_CURRENT_MAX:
-        // Gerät meldet zurück welchen Strom es als Maximum hat (in geräteeigener Skala)
-        // Wir nutzen das zur automatischen Kalibrierung des Schreibfaktors:
+      case R48xx_DATA_OUTPUT_CURRENT_MAX: {
+        // Gerät meldet zurück welchen Strom es als Maximum hat (in geräteeigener Skala).
+        // Skala der Rückmeldung = 1024 / Nennstrom (R4850: 19.69, R4875G1: 13.65). Vor der Geräteerkennung
+        // gilt der R4850-Wert. Damit wird der Schreibfaktor so kalibriert, dass Sollstrom = tatsächlicher Strom.
         // Wenn wir raw=X gesendet haben und das Gerät Y Ampere meldet → Faktor = X / Y
+        const float echo_scale = (this->nominal_known_ && this->nominal_current_ > 10.0f)
+                                     ? 1024.0f / this->nominal_current_
+                                     : 19.6923f;
         if (this->last_raw_sent_ > 10 && value > 0) {
-          float i_rueck = (float)value / 19.6923f;  // Lesefaktor (unverändert)
+          float i_rueck = (float)value / echo_scale;
           if (i_rueck > 1.0f) {
             float faktor_neu = (float)this->last_raw_sent_ / i_rueck;
             // Sanfter Mittelwert: Faktor nicht zu schnell ändern
@@ -303,10 +307,11 @@ void HuaweiR48xxComponent::on_frame(uint32_t can_id, bool rtr, std::vector<uint8
                      this->last_raw_sent_, i_rueck, this->current_scale_factor_);
           }
         }
-        conv_value = (float)value / 19.6923f;
+        conv_value = (float)value / echo_scale;
         this->publish_number_state_(this->max_output_current_number_, conv_value);
         ESP_LOGV(TAG, "Max Output current: %f", conv_value);
         break;
+      }
 
       case R48xx_DATA_INPUT_VOLTAGE:
         conv_value = value / 1024.0;
